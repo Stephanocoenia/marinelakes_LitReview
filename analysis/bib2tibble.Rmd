@@ -1,0 +1,26 @@
+---
+title: "Marine Lakes Review"
+author: "Stephanie Martinez"
+date: "30/6/2021"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r}
+library("dplyr")
+library("Matrix")
+library("stringr")
+library("igraph")
+library("FactoMineR")
+library("factoextra")
+library("ggplot2")
+
+library("bib2df")
+```
+
+```{r}
+df <- read.csv("data/")
+```
+

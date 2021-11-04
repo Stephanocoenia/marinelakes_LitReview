@@ -1,0 +1,195 @@
+---
+title: "coauthor_network"
+author: "LMM"
+date: "9 de septiembre de 2019"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r packages}
+library(tidyverse)
+library(igraph)
+library(ggraph)
+library(bib2df)
+library(visNetwork)
+library(ggplot2)
+library(artyfarty)
+library(xlsx)
+library(RColorBrewer)
+```
+
+```{r}
+rabbit <- bib2df('data/ResearchRabbit_ml.bib')
+filtered <- rabbit %>% 
+  select(CATEGORY,BIBTEXKEY,TITLE,YEAR,DOI, AUTHOR) %>%
+  as.data.frame()
+
+write.xlsx(filtered, "data/filtered_ml.xlsx")
+```
+
+# Number of publications per year. 
+
+```{r}
+
+as.data.frame(year_location)
+
+table(year_location$location)
+table(year_location$year)
+
+
+df <- data.frame(x = c("['Sexual', 'Religion']", "['Sexual']"))
+df %>% mutate(x2 = strsplit(as.character(x), ",")) %>% 
+  unnest(x2) %>% 
+  mutate(x2 = str_replace_all(x2, "[^[:alnum:]]", "")) %>% 
+  count(x2)
+```
+
+
+standarizar por numero de publicaciones en ese journal en ese año
+
+```{r}
+
+greenpal <- colorRampPalette(brewer.pal(9,"Greens"))
+
+bib %>% 
+  filter(is.na(YEAR) == FALSE) %>% 
+ggplot(aes(x = as.numeric(YEAR))) +
+  geom_bar(width = 1, fill = greenpal(6)[4]) +
+  labs(x = "", y = "Number of publications") +
+  theme_scientific() +
+  theme(axis.text.x = element_text(hjust = 1))
+
+
+```
+
+```{r}
+mult_author <- unlist(
+  lapply(filtered$AUTHOR, function(x) {
+  length(x) > 1
+}))
+
+filtered$AUTHOR[mult_author]
+
+```
+
+
+```{r}
+edge_list <- filtered$AUTHOR[mult_author] %>%
+  purrr::map(combn, m = 2) %>% 
+  flatten_chr() %>% 
+  matrix(ncol = 2, byrow = TRUE) %>% 
+  data.frame()
+
+g <- graph_from_data_frame(edge_list, directed = FALSE) 
+
+E(g)$weight <- 1
+
+g <- simplify(g, edge.attr.comb="sum")
+```
+
+```{r}
+ggraph(g) +
+  geom_edge_link(aes(width = weight)) +
+  geom_node_point()
+```
+
+
+```{r}
+gvis <- toVisNetworkData(g)
+gvis$edges$value <- gvis$edges$weight
+
+visNetwork(nodes = gvis$nodes, edges = gvis$edges) %>% 
+  visEdges(physics = FALSE) %>% 
+  visInteraction(navigationButtons = TRUE)
+
+```
+
+---
+# Frequency of methods, terms for marine lakes, and the target species or parameters measured.
+
+
+```{r}
+
+raw <- read.csv('data/raw.csv', sep=";") %>% 
+  rename(BIBKEY = ï..BIBTEXKEY)
+
+
+
+
+methods_count <- raw %>%
+  select(BIBKEY, method, location) %>% 
+  mutate(method2 = strsplit(as.character(method), ",")) %>% 
+  unnest(method2) %>% 
+  #mutate(loc2 = strsplit(as.character(location), ",")) %>% #To separate by location
+  #unnest(loc2) %>% 
+  count(method2, sort = TRUE) %>% #include location to count by method and location
+  slice(-10)  # deleting studies that are reviews (n=5)
+  #pivot_wider(names_from = method2, values_from = n, values_fill = 0) 
+
+
+  
+
+terms_count <- raw %>% 
+  select(BIBKEY, term, year, location) %>% 
+  mutate(term2 = strsplit(as.character(term), ",")) %>% 
+  unnest(term2) %>% 
+  mutate(loc2 = strsplit(as.character(location), ",")) %>%
+  unnest(loc2) %>% 
+  count(term2, sort = TRUE) %>% 
+  as.data.frame()
+
+year_count <- raw %>% 
+  select(BIBKEY, year) %>% 
+  count(year, sort = TRUE)
+
+target_count <- raw %>% 
+  select(BIBKEY, target, location) %>% 
+  mutate(target2 = strsplit(as.character(target), ",")) %>% 
+  unnest(target2) %>% 
+  mutate(loc2 = strsplit(as.character(location), ",")) %>%
+  unnest(loc2) %>% 
+  count(loc2, target2, sort = TRUE) %>% 
+  pivot_wider(names_from = target2, values_from = n, values_fill = 0) %>% 
+  slice(-5)
+
+
+write.xlsx(methods_count, "data/methods_count.xlsx")
+write.xlsx(terms_count, "data/terms_count.xlsx")
+write.xlsx(target_count, "data/target_count.xlsx")
+write.xlsx(year_count, "data/year_count.xlsx")
+
+```
+
+Plots
+
+```{r}
+
+#Studies per uear
+
+p1 <- ggplot(data=year_count, aes(x=year, y=n))+
+  geom_bar(stat = "identity", fill = "steelblue")+
+  theme_scientific()+
+  xlab("") + ylab("Number of studies")
+p1
+
+# Number of terms (refering to marine lake) across all studies
+
+p2 <- ggplot(data=terms_count, mapping =  aes(x=reorder(term2, -n), y=n))+
+  geom_bar(stat = "identity", fill = "steelblue")+
+  theme_scientific()+
+  theme(axis.text.x = element_text(angle = 45, hjust=1))+
+  xlab("") + ylab("Number of studies")
+p2
+
+# Saving and exporting plots
+
+ggsave(plot= p1, "figures/studies_years.png")
+ggsave(plot= p2, "figures/studies_terms.png")
+
+```
+

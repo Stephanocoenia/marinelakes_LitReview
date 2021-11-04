@@ -1,0 +1,83 @@
+---
+title: "coauthor_network"
+author: "LMM"
+date: "9 de septiembre de 2019"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r packages}
+library(tidyverse)
+library(igraph)
+library(ggraph)
+library(bib2df)
+library(visNetwork)
+```
+
+```{r}
+path <- system.file("extdata", "marinelakes_try.bib", package = "bib2df")
+df <- bib2df(path)
+df
+head(df$AUTHOR)
+
+library(remotes)
+install_github("kamapu/biblio")
+library(biblio)
+Bib <- read_bib(x = file.path("biblio"),"data/marinelakes.bib")
+Bib
+
+path <- system.file("extdata", "marinelakes.bib", package = "bib2df")
+df <- bib2df(path)
+
+items <- bib2df("data/marinelakes.bib")
+items
+head(items$AUTHOR)
+items <- bib2df(items, separate_names = TRUE)
+head(items$AUTHOR)
+```
+
+
+```{r}
+path <- system.file("data/marinelakes.bib", package = "bib2df")
+
+```
+
+
+
+
+```{r}
+edge_list <- items$AUTHOR %>% 
+  purrr::map(combn, m = 2) %>% 
+  flatten_chr() %>% 
+  matrix(ncol = 2, byrow = TRUE) %>% 
+  data.frame()
+
+g <- graph_from_data_frame(edge_list, directed = FALSE) 
+
+E(g)$weight <- 1
+
+g <- simplify(g, edge.attr.comb="sum")
+```
+
+```{r}
+ggraph(g) +
+  geom_edge_link(aes(width = weight)) +
+  geom_node_point()
+```
+
+
+```{r}
+gvis <- toVisNetworkData(g)
+gvis$edges$value <- gvis$edges$weight
+
+visNetwork(nodes = gvis$nodes, edges = gvis$edges) %>% 
+  visEdges(physics = FALSE) %>% 
+  visInteraction(navigationButtons = TRUE)
+
+```
+
